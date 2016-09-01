@@ -1,0 +1,292 @@
+<?php
+
+drupal_add_css(drupal_get_path('module', 'job_posting') . '/css/job_posting.css');
+drupal_add_css(drupal_get_path('module', 'job_posting') . '/css/ticker-style1.css');
+drupal_add_css(drupal_get_path('module', 'job_posting') . '/css/ticker-style2.css');
+drupal_add_css(drupal_get_path('module', 'job_posting') . '/css/popup.css');
+
+
+/**
+ * Implements hook_library().
+ */
+function job_posting_library() {
+	$libraries = array ();
+	$libraries ['job_posting_library'] = array (
+			'title' => 'Job Posting',
+			'website' => 'http://hp.com',
+			'version' => '1.0',
+			'js' => array (
+                                        "http://ajax.googleapis.com/ajax/libs/jquery/1.6.0/jquery.min.js",
+                                        "https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js",
+			),
+	);
+	
+	return $libraries;
+}
+
+
+// Implements hook_menu()
+function job_posting_menu() {
+    $items = array();
+    $items['admin/config/services/job_posting'] = array(
+        'title' => 'Job Opportunities',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('job_posting_admin_settings'),
+        'access callback' => 'user_access',
+        'access arguments' => array('administer site configuration'),
+        'type' => MENU_NORMAL_ITEM,
+        'file' => 'job_posting.admin.inc',
+    );
+    $items['job_posting'] = array(
+        'title' => 'Job Opportunities',
+        'page callback' => 'job_posting_page',
+        'access callback' => TRUE,
+        'expanded' => TRUE,
+        'menu_name' => 'main-menu',
+    );
+    return $items;
+}
+
+// Implementing job posting page
+function job_posting_page() {
+    return array(
+        '#title' => t('Job Opportunities'),
+        '#markup' => job_posting_jobtable()
+    );
+}
+
+// Implementation of hook_block_info()
+function job_posting_block_info() {
+    $blocks['posting_slider'] = array(
+        'info' => t('posting_slider'),
+        'cache' => DRUPAL_CACHE_PER_PAGE,
+    );
+    $blocks['posting_scroll'] = array(
+        'info' => t('posting_scroll'),
+        'cache' => DRUPAL_CACHE_PER_PAGE,
+    );
+    return $blocks;
+}
+
+// Implementation of hook_block_view()
+function job_posting_block_view($delta = '') {
+    $block['content'] = array();
+    switch ($delta) {
+        case 'posting_slider':
+            $block['content'] = job_posting_slider();
+            break;
+        }
+     switch ($delta) {
+        case 'posting_scroll':
+            $block['content'] = job_posting_scroll();
+            break;
+        }
+    return $block;
+}
+
+//Decoding Job posting from webservice json url
+function job_posting_jsonurl() {
+    $request = variable_get('job_posting_url'); 
+    $req = $request;
+    if (empty($req)) {
+        drupal_set_message(t('Please enter Job Posting webservices json URL in Configuration Settings.'));
+        return FALSE;
+    } else {
+        $json_url = drupal_http_request($req);
+        $posting = drupal_json_decode($json_url->data, true);
+        return $posting;
+    }
+}
+
+function job_posting_jobslider()  {
+    $posting = job_posting_jsonurl();
+    $job = array();
+    for ($i = 0; $i < sizeof($posting); $i++) {   
+          $job[$i] = '<li class="news-item"> <a href="job_posting">' . $posting[$i]['jobTitle'].'</a></li>';      
+    }    
+    $out_put = implode(' ', $job);
+    return $out_put;    
+  }
+
+  //Scrolling continously job postings
+  function job_posting_scroll() {
+    $a = job_posting_jobslider();
+    drupal_add_library ( 'job_posting', 'job_posting_library' );
+    drupal_add_js( drupal_get_path ( 'module', 'job_posting' ) . '/js/site2.js');
+    drupal_add_js( drupal_get_path ( 'module', 'job_posting' ) . '/js/jquery.ticker2.js');
+    $html = '<div> <spam class="opp"> Job Oppurtunities </spam> <ul id="ticker01"> ' . $a . '</ul> </div>';
+    return $html;
+}
+
+//sliding job posting with next, pause and prev buttons
+  function job_posting_slider() {
+    $a = job_posting_jobslider();
+    drupal_add_library ( 'job_posting', 'job_posting_library' );
+    drupal_add_js( drupal_get_path ( 'module', 'job_posting' ) . '/js/jquery.ticker1.js');
+    drupal_add_js( drupal_get_path ( 'module', 'job_posting' ) . '/js/site1.js');
+    $html = ' <ul id="js-news" class="js-hidden"> ' . $a . '</ul> <noscript>  <h2>Job Posting</h2> <ul id="no-js-news">' . $a . ' </ul> </noscript> ';
+    return $html;
+}
+
+//showing job posting in a table
+function job_posting_jobtable() {
+    drupal_add_library('job_posting', 'job_posting_library');
+    drupal_add_js(drupal_get_path('module', 'job_posting') . '/js/popup.js');
+    $output = "";
+    $posting = job_posting_jsonurl();
+    $rows = array();
+    $per_page = 25;
+
+    $header = array(
+        array("data" => t('Req #'),
+            "field" => "reqNumber"),
+        array("data" => t('Title'),
+            "field" => "jobTitle"),
+        array("data" => "Hiring Manager Name",
+            "field" => "Manager Name"),
+        array("data" => t('Location'),
+            "field" => "location",
+            "sort" => "asc"),
+        array("data" => t('Posted'),
+            "field" => "openDate"));
+
+    //getting the current sort and order parameters from the url
+    $order = tablesort_get_order($header);
+    $sort = tablesort_get_sort($header);
+
+    //looping for filling the table rows
+    for ($i = 0; $i < sizeof($posting); $i++) {
+        $mil = $posting[$i]['openDate'];
+        $seconds = $mil / 1000;
+        $date = date("m-d-Y", $seconds);
+        if($posting[$i]['reqNumber'] != 1194772) {
+            $popupT[$i] = '<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script> 
+            <script src="'.drupal_get_path ( "module", "job_posting" ) .'/js/popup.js" type="text/javascript"> </script>  
+            <div class="popup-box" id="popup-box-' . $i . '"><div class="close">X</div><div class="top"><h3>' . $posting[$i]['jobTitle'] . '</h3></div>
+                    <div class="bottom">' . $posting[$i]['description'] . '</div> </div>
+                    <div id="blackout"></div> ';
+        $rows[$i] = array(
+            'Req #' => '<a href="#">' . $posting[$i]['reqNumber'],
+            'Title' => '<a  href="#" class="popup-link-' . $i . '">' . $posting[$i]['jobTitle'] . '</a>'. $popupT[$i],
+            'Hiring Manager Name' => '<a href="#">' . $posting[$i]['hiringManagerFName'] . " " . $posting[$i]['hiringManagerLName'],
+            'Location' => $posting[$i]['location'],
+            'Posted' => $date);
+        }
+    }
+    $rows = job_posting_tablesort($rows, $order, $sort);
+
+    //initalize the pager
+    $current_page = pager_default_initialize(count($rows), $per_page);
+    //split list into page sized chucks
+    $chunks = array_chunk($rows, $per_page, TRUE);
+
+    //Format and print out the table with the pagination
+    $output .= theme_table(
+            array(
+                "header" => $header,
+                "rows" => $chunks[$current_page],
+                "attributes" => array('id' => 'posting', "width" => "100%"),
+                "sticky" => TRUE,
+                "caption" => "",
+                "colgroups" => array(),
+                "empty" => t("Table has no rows!")
+            )
+    );
+    $output .= theme("pager", array("quantity", count($rows)));
+ //export2csv link
+    $output .= '<script type="text/javascript" src="' . drupal_get_path("module", "job_posting") . '/js/table2csv.js" > </script> 
+    <a href="#" class="export" style="float:right;" >Export to Excel <img style="height: 25px;" src="' . drupal_get_path("module", "job_posting") . '/images/excel.jpg" /></a>';   
+    return $output;
+}
+
+//sort the table function
+function job_posting_tablesort($rows, $order, $sort) {
+    switch ($order['name']) {
+        case 'Req #':
+            if ($sort == 'asc') {
+                usort($rows, "job_posting_id_asc");
+            } else {
+                usort($rows, "job_posting_id_desc");
+            }
+            break;
+        case 'Title':
+            if ($sort == 'asc') {
+                usort($rows, "job_posting_title_asc");
+            } else {
+                usort($rows, "job_posting_title_desc");
+            }
+            break;
+        case 'Hiring Manager Name':
+            if ($sort == 'asc') {
+                usort($rows, "job_posting_manger_name_asc");
+            } else {
+                usort($rows, "job_posting_manger_name_desc");
+            }
+            break;
+        case 'Location':
+            if ($sort == 'asc') {
+                usort($rows, "job_posting_location_asc");
+            } else {
+                usort($rows, "job_posting_location_desc");
+            }
+            break;
+        case 'Posted':
+            if ($sort == 'asc') {
+                usort($rows, "job_posting_posted_asc");
+            } else {
+                usort($rows, "job_posting_posted_desc");
+            }
+            break;
+    }
+    return $rows;
+}
+
+//compare fn to enable 'ID' column to be sorted asc
+function job_posting_id_asc($a, $b) {
+    return strcmp($a['Req #'], $b['Req #']);
+}
+
+//compare fn to enable 'ID' column to be sorted decs
+function job_posting_id_desc($a, $b) {
+    return strcmp($b['Req #'], $a['Req #']);
+}
+
+//compare fn to enable 'Job Title' column to be sorted asc
+function job_posting_title_asc($a, $b) {
+    return strcmp($a['Title'], $b['Title']);
+}
+
+//compare fn to enable 'Job Title' column to be sorted desc
+function job_posting_title_desc($a, $b) {
+    return strcmp($b['Title'], $a['Title']);
+}
+
+//compare fn to enable 'Manger Name' column to be sorted asc
+function job_posting_manger_name_asc($a, $b) {
+    return strcmp($a['Hiring Manager Name'], $b['Hiring Manager Name']);
+}
+
+//compare fn to enable 'Manager Name' column to be sorted decs
+function job_posting_manger_name_desc($a, $b) {
+    return strcmp($b['Hiring Manager Name'], $a['Hiring Manager Name']);
+}
+
+//compare fn to enable 'Location' column to be sorted asc
+function job_posting_location_asc($a, $b) {
+    return strcmp($a['Location'], $b['Location']);
+}
+
+//compare fn to enable 'Location' column to be sorted decs
+function job_posting_location_desc($a, $b) {
+    return strcmp($b['Location'], $a['Location']);
+}
+
+//compare fn to enable 'Posted' column to be sorted asc
+function job_posting_posted_asc($a, $b) {
+    return strcmp($a['Posted'], $b['Posted']);
+}
+
+//compare fn to enable 'Posted' column to be sorted decs
+function job_posting_posted_desc($a, $b) {
+    return strcmp($b['Posted'], $a['Posted']);
+}

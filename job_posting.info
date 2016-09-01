@@ -1,0 +1,13 @@
+name = Job Posting
+description = Job Posting module
+core = 7.x
+files[]   = job_posting.module
+files[]   = job_posting.admin.inc
+
+package = HP
+
+configure = admin/config/services/job_posting
+
+version = "7.x-1.x"
+project = "job_posting"
+core = "7.x"

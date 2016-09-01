@@ -1,0 +1,21 @@
+/*page*/
+#posting tr th {
+    background: #0096D6;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#posting {
+    font-size: 15px;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#posting th a {
+    color: #fff;
+}
+
+#posting th, #posting td {
+    padding: 5px;
+} 
+
+
+
